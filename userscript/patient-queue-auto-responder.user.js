@@ -4,8 +4,7 @@
 // @version      0.2.0
 // @description  Watches the patient queue and clicks new patient links immediately.
 // @author       Emil
-// @match        *://provider.dialcare.com/*
-// @match        *://*.dialcare.com/*
+// @match        *://provider.dialcare.com/provider/queue*
 // @run-at       document-idle
 // @grant        none
 // ==/UserScript==
@@ -14,7 +13,8 @@
   "use strict";
 
   const CONFIG = {
-    enabledHostPatterns: ["provider.dialcare.com", "*.dialcare.com"],
+    enabledHostPatterns: ["provider.dialcare.com"],
+    enabledPathPrefixes: ["/provider/queue"],
     queueRootSelector: null,
     patientColumnHeaderText: ["Patient Name", "Client Name"],
     explicitLinkSelector: null,
@@ -80,6 +80,12 @@
   function isHostAllowed() {
     return CONFIG.enabledHostPatterns.some((pattern) =>
       hostMatchesPattern(window.location.hostname, pattern)
+    );
+  }
+
+  function isPathAllowed() {
+    return CONFIG.enabledPathPrefixes.some((prefix) =>
+      window.location.pathname.startsWith(prefix)
     );
   }
 
@@ -628,6 +634,11 @@
 
     if (!isHostAllowed()) {
       debugLog("current host is not in enabledHostPatterns; script is inactive", window.location.hostname);
+      return;
+    }
+
+    if (!isPathAllowed()) {
+      debugLog("current path is not in enabledPathPrefixes; script is inactive", window.location.pathname);
       return;
     }
 
