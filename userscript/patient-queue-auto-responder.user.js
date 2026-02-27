@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         Patient Queue Auto Responder
 // @namespace    https://github.com/emilshal/patient-queue-auto-responder
-// @version      0.1.0
+// @version      0.2.0
 // @description  Watches the patient queue and clicks new patient links immediately.
 // @author       Emil
-// @match        https://provider.dialcare.com/*
+// @match        *://provider.dialcare.com/*
+// @match        *://*.dialcare.com/*
 // @run-at       document-idle
 // @grant        none
 // ==/UserScript==
@@ -13,16 +14,17 @@
   "use strict";
 
   const CONFIG = {
-    enabledHostPatterns: ["provider.dialcare.com"],
+    enabledHostPatterns: ["provider.dialcare.com", "*.dialcare.com"],
     queueRootSelector: null,
-    patientColumnHeaderText: "Patient Name",
+    patientColumnHeaderText: ["Patient Name", "Client Name"],
     explicitLinkSelector: null,
     preferPopupCandidates: true,
     popupRootSelector: null,
-    popupLinkSelector: "a[href]",
+    popupLinkSelector: "a, [role='link'], [onclick]",
     allowTableFallbackWhenNoPopup: true,
     clickOnlyWhenCountdownVisible: false,
     countdownSelector: null,
+    requireInViewport: false,
     scanIntervalMs: 40,
     postClickCooldownMs: 350,
     seenEntryTtlMs: 4 * 60 * 60 * 1000,
@@ -134,7 +136,13 @@
       background: "#0f172a",
       padding: "8px 10px",
       boxShadow: "0 6px 18px rgba(0,0,0,0.35)",
-      pointerEvents: "none"
+      pointerEvents: "auto",
+      cursor: "pointer",
+      userSelect: "none"
+    });
+    node.title = "Click for support report";
+    node.addEventListener("click", () => {
+      void showSupportReport();
     });
 
     document.documentElement.appendChild(node);
@@ -150,6 +158,14 @@
     return document;
   }
 
+  function getPatientColumnTargets() {
+    if (Array.isArray(CONFIG.patientColumnHeaderText)) {
+      return CONFIG.patientColumnHeaderText.map((value) => normalizeText(value)).filter(Boolean);
+    }
+
+    return [normalizeText(CONFIG.patientColumnHeaderText)].filter(Boolean);
+  }
+
   function getPatientColumnIndex(table) {
     const headerRow =
       table.querySelector("thead tr") || table.querySelector("tr");
@@ -159,12 +175,40 @@
     }
 
     const cells = Array.from(headerRow.querySelectorAll("th, td"));
-    const target = normalizeText(CONFIG.patientColumnHeaderText);
+    const targets = getPatientColumnTargets();
 
     return cells.findIndex((cell) => {
       const text = normalizeText(cell.textContent);
-      return text === target || text.includes(target);
+      return targets.some((target) => text === target || text.includes(target));
     });
+  }
+
+  function looksLikeQueueTable(table) {
+    const headerText = normalizeText(table.querySelector("thead")?.textContent || table.querySelector("tr")?.textContent || "");
+    const queueHints = ["patient name", "client name", "wait time", "visit type", "primary symptoms", "chat"];
+    return queueHints.some((hint) => headerText.includes(hint));
+  }
+
+  function isElementPotentiallyClickable(element) {
+    if (!(element instanceof HTMLElement)) {
+      return false;
+    }
+
+    if (element.matches("a")) {
+      return true;
+    }
+
+    if (element.matches("[role='link'], [onclick], button, [tabindex]")) {
+      return true;
+    }
+
+    return typeof element.click === "function";
+  }
+
+  function collectClickablesInNode(root) {
+    const selectors = "a, [role='link'], [onclick], button, [tabindex]";
+    const nodes = Array.from(root.querySelectorAll(selectors));
+    return nodes.filter((node) => isElementPotentiallyClickable(node));
   }
 
   function collectCandidateLinksFromTables(root) {
@@ -172,7 +216,10 @@
     const result = [];
 
     for (const table of tables) {
-      const columnIndex = getPatientColumnIndex(table);
+      let columnIndex = getPatientColumnIndex(table);
+      if (columnIndex < 0 && looksLikeQueueTable(table)) {
+        columnIndex = 0;
+      }
       if (columnIndex < 0) {
         continue;
       }
@@ -188,9 +235,9 @@
           continue;
         }
 
-        const links = Array.from(targetCell.querySelectorAll("a[href]"));
-        for (const link of links) {
-          result.push(link);
+        const clickables = collectClickablesInNode(targetCell);
+        for (const clickable of clickables) {
+          result.push(clickable);
         }
       }
     }
@@ -252,9 +299,9 @@
       }
 
       const links = Array.from(popup.querySelectorAll(CONFIG.popupLinkSelector));
-      for (const link of links) {
-        if (link instanceof HTMLAnchorElement && link.getAttribute("href")) {
-          result.push(link);
+      for (const node of links) {
+        if (isElementPotentiallyClickable(node)) {
+          result.push(node);
         }
       }
     }
@@ -264,7 +311,8 @@
 
   function collectCandidateLinks() {
     if (CONFIG.explicitLinkSelector) {
-      return Array.from(document.querySelectorAll(CONFIG.explicitLinkSelector));
+      const selected = Array.from(document.querySelectorAll(CONFIG.explicitLinkSelector));
+      return selected.filter((node) => isElementPotentiallyClickable(node));
     }
 
     if (CONFIG.preferPopupCandidates) {
@@ -301,6 +349,10 @@
     const rect = element.getBoundingClientRect();
     if (rect.width < 2 || rect.height < 2) {
       return false;
+    }
+
+    if (!CONFIG.requireInViewport) {
+      return true;
     }
 
     return !(rect.bottom < 0 || rect.right < 0 || rect.top > window.innerHeight || rect.left > window.innerWidth);
@@ -421,7 +473,8 @@
   }
 
   function seedSeenLinks() {
-    const links = collectCandidateLinks();
+    const queueRoot = getQueueRoot();
+    const links = collectCandidateLinksFromTables(queueRoot);
 
     for (const link of links) {
       const key = buildLinkKey(link);

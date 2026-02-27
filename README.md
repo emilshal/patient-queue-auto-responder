@@ -17,10 +17,10 @@ This is designed for real-time queue workflows where patients are lost if not cl
 1. Install [Tampermonkey](https://www.tampermonkey.net/).
 2. Open `userscript/patient-queue-auto-responder.user.js`.
 3. In Tampermonkey, create a new script and paste the file contents.
-4. Edit the `CONFIG` object in the script:
-   - Set `enabledHostPatterns` to your real queue hostname.
-   - If needed, set `queueRootSelector`.
-   - If table detection is not enough, set `explicitLinkSelector`.
+4. For DialCare, defaults are already prefilled. If needed, edit `CONFIG`:
+   - `enabledHostPatterns` (already includes `provider.dialcare.com` and `*.dialcare.com`)
+   - `queueRootSelector` (optional)
+   - `explicitLinkSelector` (optional override)
 5. Save the script and refresh the queue page.
 6. Keep that tab open and active during operation.
 
@@ -29,7 +29,7 @@ This is designed for real-time queue workflows where patients are lost if not cl
 Update these first:
 
 - `enabledHostPatterns`: allowed hostname(s) where the script is active.
-- `patientColumnHeaderText`: defaults to `"Patient Name"`.
+- `patientColumnHeaderText`: defaults to `["Patient Name", "Client Name"]`.
 
 Optional but useful:
 
@@ -46,6 +46,7 @@ Optional but useful:
 - `Alt+Shift+R`: show a support report and copy it to clipboard
 
 A small status badge appears in the lower-right corner of the page.
+You can click the badge to open a support report (no hotkeys needed).
 DevTools API is also exposed on `window.PQAR` (for example `PQAR.getState()` and `PQAR.scanNow()`).
 
 ## How it works
