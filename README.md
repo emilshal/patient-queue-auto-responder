@@ -77,3 +77,5 @@ DevTools API is also exposed on `window.PQAR` (for example `PQAR.getState()` and
 
 - `userscript/patient-queue-auto-responder.user.js`: Tampermonkey runtime script
 - `docs/TUNING.md`: selector calibration and troubleshooting
+- `autohotkey/patient-queue-auto-responder.ahk`: Windows desktop fallback
+- `autohotkey/README.md`: AutoHotkey setup and support flow
