@@ -9,6 +9,7 @@ SetWinDelay(0)
 
 global ConfigPath := A_ScriptDir "\\config.ini"
 global LogPath := A_ScriptDir "\\patient-queue-ahk.log"
+global FallbackLogPath := A_ScriptDir "\\patient-queue-ahk-" . A_PID . ".log"
 
 global State := {
     running: false,
@@ -24,6 +25,14 @@ global State := {
     totalClicks: 0,
     totalDetections: 0
 }
+
+global AppMutexHandle := AcquireAppMutex()
+if !AppMutexHandle {
+    MsgBox("Another Patient Queue Auto Responder instance is already running.`n`nClose other tray icons/scripts first, then start again.", "Patient Queue Auto Responder")
+    ExitApp()
+}
+
+OnExit((*) => ReleaseAppMutex())
 
 global Cfg := LoadConfig()
 InitTray()
@@ -494,7 +503,7 @@ ShowStatus() {
 }
 
 BuildStatusReport() {
-    global State, Cfg, LogPath
+    global State, Cfg, LogPath, FallbackLogPath
 
     runningText := State.running ? "RUNNING" : "PAUSED"
     lastClickAgo := State.lastClickTick > 0 ? (A_TickCount - State.lastClickTick) . " ms ago" : "n/a"
@@ -511,6 +520,7 @@ BuildStatusReport() {
         . "`nLast detect: " . lastDetectAgo
         . "`nLast click: " . lastClickAgo
         . "`nLog file: " . LogPath
+        . "`nFallback log: " . FallbackLogPath
 }
 
 ShowHelp() {
@@ -542,19 +552,95 @@ SetTrayStateTip(stateText) {
 }
 
 OpenLog() {
-    global LogPath
-    if !FileExist(LogPath) {
-        FileAppend("", LogPath, "UTF-8")
+    global LogPath, FallbackLogPath
+
+    if EnsureFileExists(LogPath) {
+        Run(LogPath)
+        return
     }
-    Run(LogPath)
+
+    if EnsureFileExists(FallbackLogPath) {
+        Run(FallbackLogPath)
+        return
+    }
+
+    MsgBox("Could not open log file.", "Patient Queue Auto Responder")
 }
 
 LogEvent(message) {
-    global LogPath
+    global LogPath, FallbackLogPath
 
     stamp := FormatTime(A_Now, "yyyy-MM-dd HH:mm:ss")
     line := stamp . " | " . message . "`n"
-    FileAppend(line, LogPath, "UTF-8")
+
+    if TryAppendLine(LogPath, line) {
+        return
+    }
+
+    TryAppendLine(FallbackLogPath, line)
+}
+
+TryAppendLine(path, line, attempts := 4) {
+    loop attempts {
+        try {
+            FileAppend(line, path, "UTF-8")
+            return true
+        } catch Error as err {
+            Sleep(30)
+        }
+    }
+
+    return false
+}
+
+EnsureFileExists(path) {
+    if FileExist(path) {
+        return true
+    }
+
+    try {
+        FileAppend("", path, "UTF-8")
+        return true
+    } catch Error as err {
+        return false
+    }
+}
+
+AcquireAppMutex() {
+    ; Blocks multiple copies launched from different folders/names.
+    hMutex := DllCall("CreateMutex", "ptr", 0, "int", 1, "str", "PQAR_DialCare_AHK_SingleInstance", "ptr")
+    if (hMutex = 0) {
+        return 0
+    }
+
+    if (A_LastError = 183) {
+        DllCall("CloseHandle", "ptr", hMutex)
+        return 0
+    }
+
+    return hMutex
+}
+
+ReleaseAppMutex() {
+    global AppMutexHandle
+
+    if !AppMutexHandle {
+        return
+    }
+
+    try {
+        DllCall("ReleaseMutex", "ptr", AppMutexHandle)
+    } catch Error as err {
+        ; Ignore release failures during shutdown.
+    }
+
+    try {
+        DllCall("CloseHandle", "ptr", AppMutexHandle)
+    } catch Error as err {
+        ; Ignore close failures during shutdown.
+    }
+
+    AppMutexHandle := 0
 }
 
 InitTray() {
@@ -643,5 +729,6 @@ ExitScript() {
     if State.running {
         StopMonitoring("exit")
     }
+    ReleaseAppMutex()
     ExitApp()
 }

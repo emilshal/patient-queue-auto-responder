@@ -36,6 +36,7 @@ It watches the queue screen region and clicks the patient/client name link as so
 1. Queue must stay visible on screen (not minimized or covered).
 2. Do not move/resize browser window after setup unless you re-run setup (`F7`).
 3. Keep browser zoom stable (100% recommended).
+4. Run only one copy of this script (one tray `H` icon).
 
 ## Support and debugging
 
@@ -43,6 +44,7 @@ It watches the queue screen region and clicks the patient/client name link as so
 2. Ask client to send `patient-queue-ahk.log` from the script folder.
 3. If misses happen, re-run setup with a tighter scan area around first-column name links.
 4. If a PixelSearch invalid-handle error appears, re-run setup with `F7` and keep the queue window fully visible.
+5. If a log-write file-in-use error appears, close duplicate script instances and restart.
 
 ## Fast test without waiting for patients
 
