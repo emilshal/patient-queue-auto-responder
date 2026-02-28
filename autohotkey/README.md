@@ -28,6 +28,7 @@ It watches the queue screen region and clicks the patient/client name link as so
 - `F8`: show status report
 - `F9`: help
 - `F10`: run synthetic test (no real patient needed)
+- `Ctrl+Shift+T`: alternate synthetic test hotkey
 - `Esc`: emergency stop monitoring
 
 ## Important operating rules
@@ -41,11 +42,12 @@ It watches the queue screen region and clicks the patient/client name link as so
 1. Ask client to press `F8` and send the status text.
 2. Ask client to send `patient-queue-ahk.log` from the script folder.
 3. If misses happen, re-run setup with a tighter scan area around first-column name links.
+4. If a PixelSearch invalid-handle error appears, re-run setup with `F7` and keep the queue window fully visible.
 
 ## Fast test without waiting for patients
 
 1. Keep the queue page visible.
-2. Press `F10`.
+2. Press `F10` (or `Ctrl+Shift+T`).
 3. Script shows a temporary blue \"TEST LINK\" box inside scan area.
 4. If setup is correct, script should detect and click it, then show \"Synthetic test PASSED\".
 

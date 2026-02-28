@@ -20,6 +20,7 @@ global State := {
     lastFoundColor: 0,
     lastDetectionTick: 0,
     lastClickTick: 0,
+    lastSearchErrorTick: 0,
     totalClicks: 0,
     totalDetections: 0
 }
@@ -70,6 +71,10 @@ F9::{
 }
 
 F10::{
+    RunSyntheticTest()
+}
+
+^+t::{
     RunSyntheticTest()
 }
 
@@ -197,22 +202,34 @@ MonitorTick() {
 }
 
 FindCandidate(&outX, &outY, &outColor) {
-    global Cfg
+    global Cfg, State
 
     outX := 0
     outY := 0
     outColor := 0
 
+    if !GetSafeSearchRect(&x1, &y1, &x2, &y2) {
+        if (A_TickCount - State.lastSearchErrorTick) > 4000 {
+            State.lastSearchErrorTick := A_TickCount
+            LogEvent("search-rect-invalid | run setup with F7")
+        }
+        return false
+    }
+
     colors := ParseColorCsv(Cfg.linkColorCsv)
     for _, color in colors {
         try {
-            if PixelSearch(&px, &py, Cfg.scanX1, Cfg.scanY1, Cfg.scanX2, Cfg.scanY2, color, Cfg.colorVariation) {
+            if PixelSearch(&px, &py, x1, y1, x2, y2, color, Cfg.colorVariation) {
                 outX := px
                 outY := py
                 outColor := color
                 return true
             }
         } catch Error as err {
+            if (A_TickCount - State.lastSearchErrorTick) > 4000 {
+                State.lastSearchErrorTick := A_TickCount
+                LogEvent("pixelsearch-error | " . err.Message)
+            }
             ; Ignore search exceptions and continue trying other colors.
         }
     }
@@ -242,6 +259,7 @@ SetupWizard() {
         Cfg.linkColorCsv := Format("0x{:06X}", c)
     }
 
+    NormalizeScanArea()
     SaveConfig()
     LogEvent("setup-complete")
     FlashTip("Setup saved", 1500)
@@ -327,6 +345,69 @@ LoadConfig() {
     cfg.scanY2 := Max(y1, y2)
 
     return cfg
+}
+
+NormalizeScanArea() {
+    global Cfg
+
+    left := Cfg.scanX1
+    top := Cfg.scanY1
+    right := Cfg.scanX2
+    bottom := Cfg.scanY2
+    ClampRectToVirtualScreen(&left, &top, &right, &bottom)
+
+    Cfg.scanX1 := left
+    Cfg.scanY1 := top
+    Cfg.scanX2 := right
+    Cfg.scanY2 := bottom
+}
+
+GetSafeSearchRect(&x1, &y1, &x2, &y2) {
+    global Cfg
+
+    x1 := Cfg.scanX1
+    y1 := Cfg.scanY1
+    x2 := Cfg.scanX2
+    y2 := Cfg.scanY2
+    ClampRectToVirtualScreen(&x1, &y1, &x2, &y2)
+
+    if (x2 <= x1 || y2 <= y1) {
+        return false
+    }
+
+    return true
+}
+
+ClampRectToVirtualScreen(&x1, &y1, &x2, &y2) {
+    vx := DllCall("GetSystemMetrics", "Int", 76, "Int")
+    vy := DllCall("GetSystemMetrics", "Int", 77, "Int")
+    vw := DllCall("GetSystemMetrics", "Int", 78, "Int")
+    vh := DllCall("GetSystemMetrics", "Int", 79, "Int")
+
+    minX := vx
+    minY := vy
+    maxX := vx + vw - 1
+    maxY := vy + vh - 1
+
+    if x1 < minX {
+        x1 := minX
+    }
+    if y1 < minY {
+        y1 := minY
+    }
+    if x2 > maxX {
+        x2 := maxX
+    }
+    if y2 > maxY {
+        y2 := maxY
+    }
+
+    if x2 < x1 {
+        x2 := x1
+    }
+    if y2 < y1 {
+        y2 := y1
+    }
 }
 
 SaveConfig() {
@@ -439,6 +520,7 @@ ShowHelp() {
         . "`n- F8: Show status report"
         . "`n- F9: Show this help"
         . "`n- F10: Run synthetic test"
+        . "`n- Ctrl+Shift+T: Run synthetic test (alt hotkey)"
         . "`n- Esc: Emergency stop"
         . "`n"
         . "Setup notes:"
@@ -480,7 +562,7 @@ InitTray() {
     A_TrayMenu.Add("Start / Pause (F6)", (*) => ToggleRunning())
     A_TrayMenu.Add("Setup Wizard (F7)", (*) => RunSetupFromTray())
     A_TrayMenu.Add("Show Status (F8)", (*) => ShowStatus())
-    A_TrayMenu.Add("Run Synthetic Test (F10)", (*) => RunSyntheticTest())
+    A_TrayMenu.Add("Run Synthetic Test (F10 / Ctrl+Shift+T)", (*) => RunSyntheticTest())
     A_TrayMenu.Add("Open Log File", (*) => OpenLog())
     A_TrayMenu.Add("Help (F9)", (*) => ShowHelp())
     A_TrayMenu.Add("Exit", (*) => ExitScript())
