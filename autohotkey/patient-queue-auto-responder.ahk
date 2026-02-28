@@ -206,7 +206,7 @@ FindCandidate(&outX, &outY, &outColor) {
     colors := ParseColorCsv(Cfg.linkColorCsv)
     for _, color in colors {
         try {
-            if PixelSearch(&px, &py, Cfg.scanX1, Cfg.scanY1, Cfg.scanX2, Cfg.scanY2, color, Cfg.colorVariation, "Fast RGB") {
+            if PixelSearch(&px, &py, Cfg.scanX1, Cfg.scanY1, Cfg.scanX2, Cfg.scanY2, color, Cfg.colorVariation) {
                 outX := px
                 outY := py
                 outColor := color
