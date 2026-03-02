@@ -268,7 +268,17 @@ SetupWizard() {
     Cfg.clickY := clickPt.y
 
     if c != 0 {
-        Cfg.linkColorCsv := Format("0x{:06X}", c)
+        if IsLikelyBlueColor(c) {
+            Cfg.linkColorCsv := Format("0x{:06X}", c)
+            LogEvent("setup-color-sampled | value=" . Format("0x{:06X}", c))
+        } else {
+            Cfg.linkColorCsv := GetDefaultLinkColorCsv()
+            LogEvent("setup-color-rejected | sampled=" . Format("0x{:06X}", c) . " | using-default-blue-set")
+            MsgBox("Sampled color was not a likely blue link color.`nUsing default blue color set instead.", "Patient Queue Auto Responder")
+        }
+    } else {
+        Cfg.linkColorCsv := GetDefaultLinkColorCsv()
+        LogEvent("setup-color-defaults-used")
     }
 
     NormalizeScanArea()
@@ -337,7 +347,7 @@ LoadConfig() {
         scanY2: ToInt(IniRead(ConfigPath, "Scan", "Y2", "0"), 0),
         clickX: ToInt(IniRead(ConfigPath, "Click", "X", "0"), 0),
         clickY: ToInt(IniRead(ConfigPath, "Click", "Y", "0"), 0),
-        linkColorCsv: IniRead(ConfigPath, "Detect", "LinkColors", "0x0078D7,0x1E90FF,0x0B72B5,0x0096C7"),
+        linkColorCsv: IniRead(ConfigPath, "Detect", "LinkColors", GetDefaultLinkColorCsv()),
         colorVariation: ToInt(IniRead(ConfigPath, "Detect", "ColorVariation", "58"), 58),
         requiredConsecutiveHits: ToInt(IniRead(ConfigPath, "Detect", "RequiredConsecutiveHits", "2"), 2),
         clickCooldownMs: ToInt(IniRead(ConfigPath, "Detect", "ClickCooldownMs", "1200"), 1200),
@@ -466,7 +476,10 @@ ParseColorCsv(csv) {
         }
 
         try {
-            colors.Push(token + 0)
+            c := token + 0
+            if IsLikelyBlueColor(c) {
+                colors.Push(c)
+            }
         } catch Error as err {
             ; Skip invalid color tokens.
         }
@@ -474,9 +487,45 @@ ParseColorCsv(csv) {
 
     if colors.Length = 0 {
         colors.Push(0x0078D7)
+        colors.Push(0x1E90FF)
+        colors.Push(0x0B72B5)
+        colors.Push(0x0096C7)
     }
 
     return colors
+}
+
+GetDefaultLinkColorCsv() {
+    return "0x0078D7,0x1E90FF,0x0B72B5,0x0096C7"
+}
+
+IsLikelyBlueColor(color) {
+    r := (color >> 16) & 0xFF
+    g := (color >> 8) & 0xFF
+    b := color & 0xFF
+
+    maxV := Max(r, g, b)
+    minV := Min(r, g, b)
+    chroma := maxV - minV
+
+    ; Reject grays/whites and keep only blue-dominant colors.
+    if chroma < 20 {
+        return false
+    }
+    if b < 80 {
+        return false
+    }
+    if b < r {
+        return false
+    }
+    if b < g {
+        return false
+    }
+    if (b - Max(r, g)) < 12 {
+        return false
+    }
+
+    return true
 }
 
 ToInt(value, fallback := 0) {
@@ -531,6 +580,7 @@ BuildStatusReport() {
         . "`nScan region: (" . Cfg.scanX1 . "," . Cfg.scanY1 . ") -> (" . Cfg.scanX2 . "," . Cfg.scanY2 . ")"
         . "`nClick point: (" . Cfg.clickX . "," . Cfg.clickY . ")"
         . "`nPoll: " . Cfg.pollMs . " ms"
+        . "`nColors: " . Cfg.linkColorCsv
         . "`nColor variation: " . Cfg.colorVariation
         . "`nConsecutive hits required: " . Cfg.requiredConsecutiveHits
         . "`nClicks: " . State.totalClicks

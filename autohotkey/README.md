@@ -18,7 +18,7 @@ It watches the queue screen region and clicks the patient/client name link as so
    - Step 1: mark top-left of Client/Patient Name scan area with `F8`
    - Step 2: mark bottom-right of scan area with `F8`
    - Step 3: mark click point on first-row name link with `F8`
-   - Step 4: if a blue patient link is visible, sample it with `F8`; otherwise press `F9`
+   - Step 4: if a clear blue patient link is visible, sample it with `F8`; otherwise press `F9` (recommended)
 5. Script auto-starts monitoring.
 
 ## Hotkeys
@@ -45,6 +45,7 @@ It watches the queue screen region and clicks the patient/client name link as so
 3. If misses happen, re-run setup with a tighter scan area around first-column name links.
 4. If a PixelSearch invalid-handle error appears, re-run setup with `F7` and keep the queue window fully visible.
 5. If a log-write file-in-use error appears, close duplicate script instances and restart.
+6. If logs show `detectColor=0xF2F2F2` or other gray/white values, rerun setup and use `F9` at color step.
 
 ## Fast test without waiting for patients
 
