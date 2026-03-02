@@ -10,7 +10,7 @@ SetWinDelay(0)
 
 global ConfigPath := A_ScriptDir "\\config.ini"
 global LogPath := A_ScriptDir "\\patient-queue-ahk.log"
-global FallbackLogPath := A_ScriptDir "\\patient-queue-ahk-" . A_PID . ".log"
+global FallbackLogPath := A_ScriptDir "\\patient-queue-ahk-" . DllCall("GetCurrentProcessId", "UInt") . ".log"
 
 global State := {
     running: false,
