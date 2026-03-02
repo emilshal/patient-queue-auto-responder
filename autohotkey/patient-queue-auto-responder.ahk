@@ -299,13 +299,13 @@ SetupWizard() {
     Cfg.clickY := clickPt.y
 
     if c != 0 {
-        if IsLikelyBlueColor(c) {
+        if IsLikelyLinkColor(c) {
             Cfg.linkColorCsv := Format("0x{:06X}", c)
             LogEvent("setup-color-sampled | value=" . Format("0x{:06X}", c))
         } else {
             Cfg.linkColorCsv := GetDefaultLinkColorCsv()
-            LogEvent("setup-color-rejected | sampled=" . Format("0x{:06X}", c) . " | using-default-blue-set")
-            MsgBox("Sampled color was not a likely blue link color.`nUsing default blue color set instead.", "Patient Queue Auto Responder")
+            LogEvent("setup-color-rejected | sampled=" . Format("0x{:06X}", c) . " | using-default-link-set")
+            MsgBox("Sampled color was not a likely link color.`nUsing default blue/teal color set instead.", "Patient Queue Auto Responder")
         }
     } else {
         Cfg.linkColorCsv := GetDefaultLinkColorCsv()
@@ -517,7 +517,7 @@ ParseColorCsv(csv) {
 
         try {
             c := token + 0
-            if IsLikelyBlueColor(c) {
+            if IsLikelyLinkColor(c) {
                 colors.Push(c)
             }
         } catch Error as err {
@@ -530,16 +530,17 @@ ParseColorCsv(csv) {
         colors.Push(0x1E90FF)
         colors.Push(0x0B72B5)
         colors.Push(0x0096C7)
+        colors.Push(0x00AEA9)
     }
 
     return colors
 }
 
 GetDefaultLinkColorCsv() {
-    return "0x0078D7,0x1E90FF,0x0B72B5,0x0096C7"
+    return "0x0078D7,0x1E90FF,0x0B72B5,0x0096C7,0x00AEA9"
 }
 
-IsLikelyBlueColor(color) {
+IsLikelyLinkColor(color) {
     r := (color >> 16) & 0xFF
     g := (color >> 8) & 0xFF
     b := color & 0xFF
@@ -548,20 +549,18 @@ IsLikelyBlueColor(color) {
     minV := Min(r, g, b)
     chroma := maxV - minV
 
-    ; Reject grays/whites and keep only blue-dominant colors.
+    ; Reject grays/whites and allow blue or teal/cyan link tones.
     if chroma < 20 {
         return false
     }
-    if b < 80 {
+    if (r > 210 && g > 210 && b > 210) {
         return false
     }
-    if b < r {
-        return false
-    }
-    if b < g {
-        return false
-    }
-    if (b - Max(r, g)) < 12 {
+
+    isBlue := (b >= 90) && (b >= g + 8) && (b >= r + 8)
+    isTeal := (g >= 95) && (b >= 95) && (r <= 120) && (Abs(g - b) <= 70)
+
+    if !(isBlue || isTeal) {
         return false
     }
 
