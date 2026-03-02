@@ -11,6 +11,18 @@ SetWinDelay(0)
 global ConfigPath := A_ScriptDir "\\config.ini"
 global LogPath := A_ScriptDir "\\patient-queue-ahk.log"
 global FallbackLogPath := A_ScriptDir "\\patient-queue-ahk-" . DllCall("GetCurrentProcessId", "UInt") . ".log"
+global KnownGoodPreset := {
+    enabled: true,
+    scanX1: 276,
+    scanY1: 515,
+    scanX2: 404,
+    scanY2: 552,
+    clickX: 319,
+    clickY: 525,
+    linkColorCsv: "0x00AEA9",
+    colorVariation: 5,
+    pollMs: 300
+}
 
 global State := {
     running: false,
@@ -38,6 +50,10 @@ if !AppMutexHandle {
 OnExit((*) => ReleaseAppMutex())
 
 global Cfg := LoadConfig()
+ApplyKnownGoodPresetIfEnabled()
+if KnownGoodPreset.enabled {
+    SaveConfig()
+}
 InitTray()
 
 if !IsConfigValid() {
@@ -58,6 +74,15 @@ F6::{
 }
 
 F7::{
+    global KnownGoodPreset
+
+    if KnownGoodPreset.enabled {
+        ApplyKnownGoodPresetIfEnabled()
+        SaveConfig()
+        MsgBox("Known-good preset lock is ON.`nManual setup is disabled in this mode.", "Patient Queue Auto Responder")
+        return
+    }
+
     try {
         wasRunning := State.running
         if wasRunning {
@@ -404,6 +429,35 @@ LoadConfig() {
     return cfg
 }
 
+ApplyKnownGoodPresetIfEnabled() {
+    global Cfg, KnownGoodPreset
+
+    if !KnownGoodPreset.enabled {
+        return
+    }
+
+    Cfg.scanX1 := KnownGoodPreset.scanX1
+    Cfg.scanY1 := KnownGoodPreset.scanY1
+    Cfg.scanX2 := KnownGoodPreset.scanX2
+    Cfg.scanY2 := KnownGoodPreset.scanY2
+    Cfg.clickX := KnownGoodPreset.clickX
+    Cfg.clickY := KnownGoodPreset.clickY
+    Cfg.linkColorCsv := KnownGoodPreset.linkColorCsv
+    Cfg.colorVariation := KnownGoodPreset.colorVariation
+    Cfg.pollMs := KnownGoodPreset.pollMs
+
+    ; Match the known-working style but keep safety guards.
+    Cfg.useDetectedPixelClick := false
+    Cfg.requiredConsecutiveHits := 1
+    Cfg.clickCooldownMs := 900
+    Cfg.requireQueueWindowActive := true
+    Cfg.queueTitleHint := "dialcare"
+    Cfg.requireDetectedNearClickY := true
+    Cfg.detectYTolerancePx := 24
+
+    NormalizeScanArea()
+}
+
 NormalizeScanArea() {
     global Cfg
 
@@ -609,7 +663,7 @@ ShowStatus() {
 }
 
 BuildStatusReport() {
-    global State, Cfg, LogPath, FallbackLogPath
+    global State, Cfg, LogPath, FallbackLogPath, KnownGoodPreset
 
     runningText := State.running ? "RUNNING" : "PAUSED"
     lastClickAgo := State.lastClickTick > 0 ? (A_TickCount - State.lastClickTick) . " ms ago" : "n/a"
@@ -618,6 +672,7 @@ BuildStatusReport() {
     return "Status: " . runningText
         . "`nScan region: (" . Cfg.scanX1 . "," . Cfg.scanY1 . ") -> (" . Cfg.scanX2 . "," . Cfg.scanY2 . ")"
         . "`nClick point: (" . Cfg.clickX . "," . Cfg.clickY . ")"
+        . "`nPreset lock: " . (KnownGoodPreset.enabled ? "ON (known-good fixed values)" : "OFF")
         . "`nPoll: " . Cfg.pollMs . " ms"
         . "`nColors: " . Cfg.linkColorCsv
         . "`nColor variation: " . Cfg.colorVariation
@@ -634,9 +689,11 @@ BuildStatusReport() {
 }
 
 ShowHelp() {
+    global KnownGoodPreset
+
     help := "Quick controls:"
         . "`n- F6: Start/Pause monitoring"
-        . "`n- F7: Run setup wizard"
+        . "`n- F7: " . (KnownGoodPreset.enabled ? "Re-apply locked preset" : "Run setup wizard")
         . "`n- F8: Show status report"
         . "`n- F9: Show this help"
         . "`n- F10: Run synthetic test"
