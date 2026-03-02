@@ -37,6 +37,7 @@ It watches the queue screen region and clicks the patient/client name link as so
 2. Do not move/resize browser window after setup unless you re-run setup (`F7`).
 3. Keep browser zoom stable (100% recommended).
 4. Run only one copy of this script (one tray `H` icon).
+5. Script now only scans/clicks when active window is Chrome with `DialCare` in title.
 
 ## Support and debugging
 

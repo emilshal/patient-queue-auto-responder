@@ -149,6 +149,11 @@ MonitorTick() {
         return
     }
 
+    if !QueueWindowGuardPasses() {
+        State.consecutiveHits := 0
+        return
+    }
+
     found := FindCandidate(&fx, &fy, &color)
 
     if State.awaitClear {
@@ -169,6 +174,13 @@ MonitorTick() {
     if !found {
         State.consecutiveHits := 0
         return
+    }
+
+    if Cfg.requireDetectedNearClickY {
+        if Abs(fy - Cfg.clickY) > Cfg.detectYTolerancePx {
+            State.consecutiveHits := 0
+            return
+        }
     }
 
     prevX := State.lastHitX
@@ -211,6 +223,25 @@ MonitorTick() {
 
     LogEvent("clicked | x=" . tx . " | y=" . ty . " | detectColor=" . Format("0x{:06X}", color))
     FlashTip("Clicked patient link", 1000)
+}
+
+QueueWindowGuardPasses() {
+    global Cfg
+
+    if !Cfg.requireQueueWindowActive {
+        return true
+    }
+
+    if !WinActive("ahk_exe chrome.exe") {
+        return false
+    }
+
+    title := WinGetTitle("A")
+    if (Cfg.queueTitleHint = "") {
+        return true
+    }
+
+    return InStr(StrLower(title), StrLower(Cfg.queueTitleHint)) > 0
 }
 
 FindCandidate(&outX, &outY, &outColor) {
@@ -354,7 +385,11 @@ LoadConfig() {
         clearMissFrames: ToInt(IniRead(ConfigPath, "Detect", "ClearMissFrames", "4"), 4),
         pollMs: ToInt(IniRead(ConfigPath, "Detect", "PollMs", "25"), 25),
         useDetectedPixelClick: ToBool(IniRead(ConfigPath, "Detect", "UseDetectedPixelClick", "1"), true),
-        beepOnClick: ToBool(IniRead(ConfigPath, "Detect", "BeepOnClick", "1"), true)
+        beepOnClick: ToBool(IniRead(ConfigPath, "Detect", "BeepOnClick", "1"), true),
+        requireQueueWindowActive: ToBool(IniRead(ConfigPath, "Guard", "RequireQueueWindowActive", "1"), true),
+        queueTitleHint: IniRead(ConfigPath, "Guard", "QueueTitleHint", "DialCare"),
+        requireDetectedNearClickY: ToBool(IniRead(ConfigPath, "Guard", "RequireDetectedNearClickY", "1"), true),
+        detectYTolerancePx: ToInt(IniRead(ConfigPath, "Guard", "DetectYTolerancePx", "24"), 24)
     }
 
     x1 := cfg.scanX1
@@ -451,6 +486,11 @@ SaveConfig() {
     IniWrite(Cfg.pollMs, ConfigPath, "Detect", "PollMs")
     IniWrite(Cfg.useDetectedPixelClick ? 1 : 0, ConfigPath, "Detect", "UseDetectedPixelClick")
     IniWrite(Cfg.beepOnClick ? 1 : 0, ConfigPath, "Detect", "BeepOnClick")
+
+    IniWrite(Cfg.requireQueueWindowActive ? 1 : 0, ConfigPath, "Guard", "RequireQueueWindowActive")
+    IniWrite(Cfg.queueTitleHint, ConfigPath, "Guard", "QueueTitleHint")
+    IniWrite(Cfg.requireDetectedNearClickY ? 1 : 0, ConfigPath, "Guard", "RequireDetectedNearClickY")
+    IniWrite(Cfg.detectYTolerancePx, ConfigPath, "Guard", "DetectYTolerancePx")
 }
 
 IsConfigValid() {
@@ -582,6 +622,9 @@ BuildStatusReport() {
         . "`nPoll: " . Cfg.pollMs . " ms"
         . "`nColors: " . Cfg.linkColorCsv
         . "`nColor variation: " . Cfg.colorVariation
+        . "`nQueue-window guard: " . (Cfg.requireQueueWindowActive ? "ON" : "OFF")
+        . "`nQueue title hint: " . Cfg.queueTitleHint
+        . "`nY-band guard: " . (Cfg.requireDetectedNearClickY ? ("ON +/-" . Cfg.detectYTolerancePx . "px") : "OFF")
         . "`nConsecutive hits required: " . Cfg.requiredConsecutiveHits
         . "`nClicks: " . State.totalClicks
         . "`nDetections: " . State.totalDetections
