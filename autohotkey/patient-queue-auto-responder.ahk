@@ -1,5 +1,6 @@
 #Requires AutoHotkey v2.0
 #SingleInstance Force
+#MaxThreadsPerHotkey 1
 Persistent
 
 CoordMode("Mouse", "Screen")
@@ -23,7 +24,9 @@ global State := {
     lastClickTick: 0,
     lastSearchErrorTick: 0,
     totalClicks: 0,
-    totalDetections: 0
+    totalDetections: 0,
+    statusOpen: false,
+    statusLastShownTick: 0
 }
 
 global AppMutexHandle := AcquireAppMutex()
@@ -498,8 +501,23 @@ ToBool(value, fallback := false) {
 ShowStatus() {
     global State, Cfg
 
+    ; Prevent stacked status dialogs from key repeat or repeated tray clicks.
+    if State.statusOpen {
+        return
+    }
+
+    if (A_TickCount - State.statusLastShownTick) < 700 {
+        return
+    }
+
+    State.statusOpen := true
+    State.statusLastShownTick := A_TickCount
     report := BuildStatusReport()
-    MsgBox(report, "Patient Queue Auto Responder")
+    try {
+        MsgBox(report, "Patient Queue Auto Responder")
+    } finally {
+        State.statusOpen := false
+    }
 }
 
 BuildStatusReport() {
